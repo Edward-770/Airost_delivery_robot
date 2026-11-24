@@ -1,0 +1,42 @@
+# AIROST delivery robot parts list
+
+The **NUCLEO-F756ZG** controls the wheels with PID and reads the sensors using direct register programming. The AIROST challenge calls for autonomous line following to the selected station (red for ball 1, blue for ball 2, green for ball 3), then wireless manual control to collect a ping-pong ball and bring it back to the start. Front, left, and right distance sensors add the requested maze and obstacle capability. [AIROST challenge brief](https://docs.google.com/document/d/1AoRoc9tJ9h6Pwux2K1h4pbLlgh3hs4KVRJ0XkuJz0YU/edit?usp=sharing)
+
+## Sensors and electronics
+
+| Qty | Part | Purpose and selection |
+|---:|---|---|
+| 1 | STM32 NUCLEO-F756ZG | **Already owned.** Keep the built-in ST-LINK for programming and debugging. Use a USB data cable that fits your board. [ST board manual](https://www.st.com/resource/en/user_manual/dm00244518-stm32-nucleo-144-boards-mb1137-stmicroelectronics.pdf) |
+| 2 | Matching brushed DC gearmotors with A/B encoders | **Check your existing motors first.** Each wheel needs a quadrature encoder for speed and direction. Confirm you have a matching pair and verify encoder output logic levels before connecting to the STM32. |
+| 1 | Dual H-bridge motor driver | **Check your existing driver first.** Use a board that accepts 3.3 V control signals and can handle the motor supply voltage, normal current and startup or stall current per channel. For small motors, the Pololu DRV8833 carrier is one candidate, rated for 2.7–10.8 V and about 1.2 A continuous per channel. [Carrier specifications](https://www.pololu.com/product/2130) |
+| 1 | Pololu QTR-MD-05A analog reflectance array, #4245 | **For line following.** Mount across the direction of travel, facing down about 5 mm from the track. The module measures 37 × 20 × 2.5 mm. Power it at 3.3 V so its five analog signals stay within the ADC range. Allow up to 93 mA for the array. [Array specifications](https://www.pololu.com/product/4245) |
+| 1 | TCS34725 colour breakout, such as Adafruit #1334 | **For station selection.** Face it down on an adjustable mount to the right of the line array so it can see the tiles beside the track. Set its height and calibrate on your actual red, green and blue materials. The example module is roughly 20.4 × 20.3 mm and supports 3.3 V I²C. [Breakout specifications](https://www.adafruit.com/product/1334) |
+| 3 | VL53L1X distance sensor carriers, such as Pololu #3415 | **For obstacles and maze walls.** Test one forward-facing module first. Add one looking left and one right for maze navigation. Each example carrier measures roughly 13 × 18 × 2 mm before the headers and supports 3.3 V VIN and I²C. [Carrier specifications](https://www.pololu.com/product/3415) |
+| 1 | ESP32 development board | **For wireless manual control.** Use Wi-Fi to receive commands and a 3.3 V UART to send them to the STM32, with common ground. For the first bench test, send manual commands from the PC over the Nucleo’s ST-LINK serial port. [ESP32-DevKitC guide](https://docs.espressif.com/projects/esp-idf/en/v5.0/esp32/hw-reference/esp32/get-started-devkitc.html) |
+| 2 | Micro servos, provisional | **For ball pickup.** The concept uses one servo to lift and one to close the gripper. Use the supplied horns plus linkage, brackets and fasteners. Check the servo’s PWM input level, travel and torque with the chosen linkage before ordering. The CAD uses the 23.6 × 11.6 × 24 mm case size of the 4.8–6 V Hitec HS-65MG as its reference. [Servo specifications](https://hitecrcd.com/hs-65mg-metal-gear-analog-micro-servo/) |
+
+**I²C wiring decision.** The TCS34725 and VL53L1X both start at address `0x29`. Put the colour module on a separate STM32 I²C bus from the distance modules, or use an I²C multiplexer. On the distance bus, wire each module’s `XSHUT` to a separate GPIO. At startup, hold all three modules low, release one at a time and assign each a unique address. For the Pololu carrier, drive `XSHUT` low and release it to high impedance so the onboard pull-up provides the high level. Repeat address setup after reset. ST’s VL53L1X driver can use your register-level I²C functions for communication. [Colour address](https://www.adafruit.com/product/1334) · [Distance sensor wiring](https://www.pololu.com/product/3415) · [ST sensor driver](https://www.st.com/en/embedded-software/stsw-img009.html)
+
+## Chassis, power and bench equipment
+
+| Qty | Equipment | What to check |
+|---:|---|---|
+| 1 set | Chassis, removable upper tray and ball gripper | The CAD uses a 170 × 134 × 4 mm lower plate. The drawn carry pose is about 235 × 189 mm including the ball and sensor arm. The course has 200 × 200 mm start and unload squares. Check a stowed arm pose and turning clearance at the stations before cutting or printing. [AIROST challenge map](https://docs.google.com/document/d/1AoRoc9tJ9h6Pwux2K1h4pbLlgh3hs4KVRJ0XkuJz0YU/edit?usp=sharing) |
+| 2 + 2 + 1 | Drive wheels, motor brackets, rear caster | The model uses 65 × 19 mm wheels and provisional motor and caster mounts. Match the wheel hubs to your motor shafts. Select caster height and any spacers so the chassis sits level, then mark the mounting holes from the physical parts. |
+| 1 set | Standoffs, screws, nuts and washers | Size fasteners to the measured holes. Use spacers to keep the Nucleo’s underside clear. Use adjustable brackets for the floor sensors and the three distance modules. |
+| 1 set | Gripper hardware and battery strap | Fit a soft contact surface or ball cradle to keep the ball from slipping. Secure the battery low and near the middle of the chassis. Keep the switch easy to reach. |
+| 1 set | Motor battery or supply, suitable charger, switch, fuse and connectors | Choose after confirming motor voltage and current. Check fully charged battery voltage against both the motors and driver. The battery and wiring must handle both motors starting. For bench work, use USB for the Nucleo and a separate motor supply with common ground. For untethered use, select a regulated logic supply and the matching Nucleo power jumper setting. [ST board power options](https://www.st.com/resource/en/user_manual/dm00244518-stm32-nucleo-144-boards-mb1137-stmicroelectronics.pdf) |
+| 1 | Regulated servo supply | A separate 5 V regulator is a starting point for 4.8–6 V servos. Size it for both servos’ combined peak current and give it a common ground with the Nucleo. Connect servo power directly to that regulator. |
+| 1 set | Wiring and tools | Perfboard, locking connectors or terminal blocks, wire, heat shrink, cable ties, ruler or calipers, screwdriver and multimeter. Use a current-limited bench supply when available. |
+| 1 set | Test course and payloads | Matte light board, 19 mm black tape with 10 mm gaps on dashed sections, red/blue/green tiles, and upright cardboard panels for maze walls. Use three 40 mm ping-pong balls and small rings to keep them in place before pickup. [AIROST challenge map](https://docs.google.com/document/d/1AoRoc9tJ9h6Pwux2K1h4pbLlgh3hs4KVRJ0XkuJz0YU/edit?usp=sharing) · [ITTF ball specification](https://db.ittf.com/sites/default/files/public/2025-02/2025_ITTF_Statutes_clean_version.pdf) |
+
+Measure the **motor bodies and brackets, shafts, wheel hubs and diameters, caster height, battery pack, and sensor mounting holes** before finalizing the CAD. Measure with the cables fitted so the mounts leave room for the connectors. The motor models, driver, wheels, battery and associated mount details remain provisional until those checks.
+
+## Build order
+
+1. With the wheels raised, verify encoder direction by turning each wheel by hand. Test low PWM, then tune speed feedback on one wheel and repeat on the other.
+2. Power the line array at 3.3 V, bring the five ADC readings into memory with DMA, and calibrate over the line and background. Test slow line following before adding colour marker actions.
+3. Test the gripper on a 40 mm ball, including pickup, lift, release and clearance around the floor sensors. Add wireless manual control and verify that the wheels stop when commands go stale. Rehearse the handoff to manual control at the selected station and return the ball to the start.
+4. Test one forward distance sensor and a stop threshold at low speed. Add the left and right sensors and test wall following and turns in a simple maze.
+
+A camera or IMU can wait until you define the Edge AI task. The line, colour and distance sensors cover the first set of navigation tests.

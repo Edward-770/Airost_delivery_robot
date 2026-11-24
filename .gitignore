@@ -1,0 +1,26 @@
+# STM32CubeIDE build artifacts
+Debug/
+Release/
+*.o
+*.d
+*.su
+*.cyclo
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+.settings/
+.mxproject
+
+# Python / CAD temporary files
+__pycache__/
+*.pyc
+cad_deps/
+robot_mesh.json
+
+# OS / Editor metadata
+.DS_Store
+Thumbs.db
+*.swp
+~$*.docx
