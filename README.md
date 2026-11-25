@@ -64,10 +64,10 @@ Airost_delivery_robot/
 | **5-Ch Line Array** | `OUT1..OUT3` | `PA3`, `PC0`, `PC3` | `CN9` **`A0`**, **`A1`**, **`A2`** | `ADC1_IN3/10/13` + `DMA2_S0` |
 | **5-Ch Line Array** | `OUT4`, `OUT5` | `PA4`, `PA5` | `CN7 Pin 17`, **`D13`** | `ADC1_IN4/5` + `DMA2_S0` |
 | **`TB6612FNG` Driver** | `PWMA`, `PWMB` | `PE9`, `PE11` | `CN10` **`D6`**, **`D5`** | `TIM1_CH1`, `TIM1_CH2` (20 kHz) |
-| **`TB6612FNG` Driver** | `AIN1`, `AIN2` | `PE12`, `PE13` | `CN10 Pin 26`, **`D3`** (`Pin 10`) | `GPIOE` Output |
-| **`TB6612FNG` Driver** | `BIN1`, `BIN2` | `PE14`, `PE15` | `CN10 Pin 28`, `CN10 Pin 30` | `GPIOE` Output |
-| **`TB6612FNG` Driver** | `STBY` | `PE10` *(or `3.3V`)* | `CN10 Pin 24` | `GPIOE` Output (Driven `HIGH`) |
-| **Left Encoder** | `C1 (A)`, `C2 (B)` | `PA6`, `PB5` | `CN7` **`D12`**, **`D11`** | `TIM3_CH1`, `TIM3_CH2` (`AF2`) |
+| **`TB6612FNG` Driver** | `AIN1`, `AIN2` | `PF13`, `PE13` | `CN10` **`D7`**, **`D3`** | `GPIOF`, `GPIOE` Output |
+| **`TB6612FNG` Driver** | `BIN1`, `BIN2` | `PF14`, `PF15` | `CN10` **`D4`**, **`D2`** | `GPIOF` Output |
+| **`TB6612FNG` Driver** | `STBY` | `3.3V` *(or `PE10`)* | `CN8 Pin 7` *(or `CN10 Pin 24`)* | Driven `HIGH` |
+| **Left Encoder** | `C1 (A)`, `C2 (B)` | `PA6`, `PC7` | `CN7` **`D12`**, `CN7 Pin 11` | `TIM3_CH1`, `TIM3_CH2` (`AF2`) |
 | **Right Encoder** | `C1 (A)`, `C2 (B)` | `PD12`, `PD13` | `CN10 Pin 21`, `CN10 Pin 19` | `TIM4_CH1`, `TIM4_CH2` (`AF2`) |
 | **Ball Servos** | `Lift`, `Claw` | `PB10`, `PB11` | `CN10 Pin 32`, `CN10 Pin 34` | `TIM2_CH3`, `TIM2_CH4` (50 Hz) |
 | **`ZS-040` Bluetooth** | `RXD`, `TXD` | `PD5 (TX)`, `PD6 (RX)` | `CN9 Pin 6`, `CN9 Pin 4` | `USART2` (`AF7`, 9600 baud) |

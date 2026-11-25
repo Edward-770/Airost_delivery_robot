@@ -6,7 +6,7 @@
  * Hardware Timers Configured Directly (Bare-Metal Registers):
  *   - TIM1 : 20 kHz Ultrasonic Motor PWM on PE9 (PWMA / D6) & PE11 (PWMB / D5) — silent operation!
  *   - TIM2 : 50 Hz Standard Servo PWM (1 us resolution) on PB10 (Lift) & PB11 (Claw).
- *   - TIM3 : Hardware Quadrature Encoder Interface Mode 3 on PA6 (D12) & PB5 (D11) (Left Wheel).
+ *   - TIM3 : Hardware Quadrature Encoder Interface Mode 3 on PA6 (D12) & PC7 (CN7 Pin 11) (Left Wheel).
  *   - TIM4 : Hardware Quadrature Encoder Interface Mode 3 on PD12 & PD13 (Right Wheel).
  */
 
@@ -27,9 +27,9 @@
  */
 void MotorMPU_Init(uint32_t apb1_timer_clk_hz, uint32_t apb2_timer_clk_hz)
 {
-    /* 1. Enable peripheral clocks for GPIOA, GPIOB, GPIOD, GPIOE and TIM1..TIM4 */
-    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOBEN |
-                    RCC_AHB1ENR_GPIODEN | RCC_AHB1ENR_GPIOEEN;
+    /* 1. Enable peripheral clocks for GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF and TIM1..TIM4 */
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOBEN | RCC_AHB1ENR_GPIOCEN |
+                    RCC_AHB1ENR_GPIODEN | RCC_AHB1ENR_GPIOEEN | RCC_AHB1ENR_GPIOFEN;
     RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN | RCC_APB1ENR_TIM3EN | RCC_APB1ENR_TIM4EN;
     (void)RCC->APB1ENR;
@@ -40,14 +40,17 @@ void MotorMPU_Init(uint32_t apb1_timer_clk_hz, uint32_t apb2_timer_clk_hz)
     GPIOE->AFR[1] &= ~((0xFUL << ((9U - 8U) * 4U)) | (0xFUL << ((11U - 8U) * 4U)));
     GPIOE->AFR[1] |=  ((1UL   << ((9U - 8U) * 4U)) | (1UL   << ((11U - 8U) * 4U)));
 
-    /* 3. Configure PE10 (STBY) and PE12..PE15 (AIN1, AIN2, BIN1, BIN2) as Push-Pull Outputs */
-    GPIOE->MODER &= ~((3UL << (10U * 2U)) | (3UL << (12U * 2U)) | (3UL << (13U * 2U)) |
-                      (3UL << (14U * 2U)) | (3UL << (15U * 2U)));
-    GPIOE->MODER |=  ((1UL << (10U * 2U)) | (1UL << (12U * 2U)) | (1UL << (13U * 2U)) |
-                      (1UL << (14U * 2U)) | (1UL << (15U * 2U)));
+    /* 3. Configure PE10 (optional STBY), PE13 (AIN2 / D3), PF13 (AIN1 / D7),
+     *    PF14 (BIN1 / D4), and PF15 (BIN2 / D2) as Push-Pull Outputs */
+    GPIOE->MODER &= ~((3UL << (10U * 2U)) | (3UL << (13U * 2U)));
+    GPIOE->MODER |=  ((1UL << (10U * 2U)) | (1UL << (13U * 2U)));
 
-    /* Drive PE10 (TB6612FNG STBY pin) HIGH so the dual H-bridge outputs are enabled */
-    GPIOE->BSRR = (1UL << 10U);
+    GPIOF->MODER &= ~((3UL << (13U * 2U)) | (3UL << (14U * 2U)) | (3UL << (15U * 2U)));
+    GPIOF->MODER |=  ((1UL << (13U * 2U)) | (1UL << (14U * 2U)) | (1UL << (15U * 2U)));
+
+    /* Drive PE10 (TB6612FNG STBY pin) HIGH and clear direction pins LOW at boot */
+    GPIOE->BSRR = (1UL << 10U) | (1UL << (13U + 16U));
+    GPIOF->BSRR = (1UL << (13U + 16U)) | (1UL << (14U + 16U)) | (1UL << (15U + 16U));
 
     /* Configure TIM1 for 20 kHz PWM (Duty cycle 0..1000 via CCR1 & CCR2) */
     uint32_t psc1 = apb2_timer_clk_hz / (20000UL * 1000UL);
@@ -79,7 +82,7 @@ void MotorMPU_Init(uint32_t apb1_timer_clk_hz, uint32_t apb2_timer_clk_hz)
     TIM2->CR1   = TIM_CR1_ARPE | TIM_CR1_CEN;
 
     /* 5. Configure Hardware Quadrature Encoders (AF2 on TIM3 & TIM4):
-     *    Left  Encoder -> PA6 (TIM3_CH1, D12) & PB5 (TIM3_CH2, D11) — zero Ethernet conflict!
+     *    Left  Encoder -> PA6 (TIM3_CH1, D12) & PC7 (TIM3_CH2, CN7 Pin 11, directly left of D12) — zero SB/Ethernet conflict!
      *    Right Encoder -> PD12 (TIM4_CH1, CN10 Pin 21) & PD13 (TIM4_CH2, CN10 Pin 19)
      */
     GPIOA->MODER  &= ~(3UL << (6U * 2U));
@@ -89,12 +92,12 @@ void MotorMPU_Init(uint32_t apb1_timer_clk_hz, uint32_t apb2_timer_clk_hz)
     GPIOA->AFR[0] &= ~(0xFUL << (6U * 4U));
     GPIOA->AFR[0] |=  (2UL   << (6U * 4U));
 
-    GPIOB->MODER  &= ~(3UL << (5U * 2U));
-    GPIOB->MODER  |=  (2UL << (5U * 2U));
-    GPIOB->PUPDR  &= ~(3UL << (5U * 2U));
-    GPIOB->PUPDR  |=  (1UL << (5U * 2U));
-    GPIOB->AFR[0] &= ~(0xFUL << (5U * 4U));
-    GPIOB->AFR[0] |=  (2UL   << (5U * 4U));
+    GPIOC->MODER  &= ~(3UL << (7U * 2U));
+    GPIOC->MODER  |=  (2UL << (7U * 2U));
+    GPIOC->PUPDR  &= ~(3UL << (7U * 2U));
+    GPIOC->PUPDR  |=  (1UL << (7U * 2U)); /* Enable pull-up for open-drain Hall sensors */
+    GPIOC->AFR[0] &= ~(0xFUL << (7U * 4U));
+    GPIOC->AFR[0] |=  (2UL   << (7U * 4U));
 
     GPIOD->MODER  &= ~((3UL << (12U * 2U)) | (3UL << (13U * 2U)));
     GPIOD->MODER  |=  ((2UL << (12U * 2U)) | (2UL << (13U * 2U)));
@@ -274,27 +277,29 @@ void DrivePID_Update_10ms(DrivePID_State_t *drive, float dt_sec)
  * ============================================================================ */
 
 /**
- * @brief  Command Left and Right motor direction (GPIOE->BSRR) and 20 kHz PWM duty (TIM1->CCR1/2).
+ * @brief  Command Left and Right motor direction (GPIOF/GPIOE->BSRR) and 20 kHz PWM duty (TIM1->CCR1/2).
  */
 void Motor_Set_PWM(int16_t left_pwm, int16_t right_pwm)
 {
-    /* Left motor: AIN1 = PE12, AIN2 = PE13, PWMA = TIM1->CCR1 */
+    /* Left motor: AIN1 = PF13 (D7), AIN2 = PE13 (D3), PWMA = TIM1->CCR1 (PE9 / D6) */
     if (left_pwm >= 0) {
-        GPIOE->BSRR = (1UL << 12U) | (1UL << (13U + 16U)); /* AIN1=1, AIN2=0 (Forward) */
+        GPIOF->BSRR = (1UL << 13U);        /* AIN1=1 */
+        GPIOE->BSRR = (1UL << (13U + 16U));/* AIN2=0 (Forward) */
         TIM1->CCR1  = (left_pwm > 1000) ? 1000U : (uint16_t)left_pwm;
     } else {
         int16_t mag = -left_pwm;
-        GPIOE->BSRR = (1UL << 13U) | (1UL << (12U + 16U)); /* AIN1=0, AIN2=1 (Reverse) */
+        GPIOF->BSRR = (1UL << (13U + 16U));/* AIN1=0 */
+        GPIOE->BSRR = (1UL << 13U);        /* AIN2=1 (Reverse) */
         TIM1->CCR1  = (mag > 1000) ? 1000U : (uint16_t)mag;
     }
 
-    /* Right motor: BIN1 = PE14, BIN2 = PE15, PWMB = TIM1->CCR2 */
+    /* Right motor: BIN1 = PF14 (D4), BIN2 = PF15 (D2), PWMB = TIM1->CCR2 (PE11 / D5) */
     if (right_pwm >= 0) {
-        GPIOE->BSRR = (1UL << 14U) | (1UL << (15U + 16U)); /* BIN1=1, BIN2=0 (Forward) */
+        GPIOF->BSRR = (1UL << 14U) | (1UL << (15U + 16U)); /* BIN1=1, BIN2=0 (Forward) */
         TIM1->CCR2  = (right_pwm > 1000) ? 1000U : (uint16_t)right_pwm;
     } else {
         int16_t mag = -right_pwm;
-        GPIOE->BSRR = (1UL << 15U) | (1UL << (14U + 16U)); /* BIN1=0, BIN2=1 (Reverse) */
+        GPIOF->BSRR = (1UL << 15U) | (1UL << (14U + 16U)); /* BIN1=0, BIN2=1 (Reverse) */
         TIM1->CCR2  = (mag > 1000) ? 1000U : (uint16_t)mag;
     }
 }
@@ -303,9 +308,9 @@ void Motor_Stop(void)
 {
     TIM1->CCR1  = 0U;
     TIM1->CCR2  = 0U;
-    /* Clear AIN1, AIN2, BIN1, BIN2 to put TB6612FNG into coast/stop */
-    GPIOE->BSRR = (1UL << (12U + 16U)) | (1UL << (13U + 16U)) |
-                  (1UL << (14U + 16U)) | (1UL << (15U + 16U));
+    /* Clear AIN1 (PF13), AIN2 (PE13), BIN1 (PF14), BIN2 (PF15) to put TB6612FNG into coast/stop */
+    GPIOE->BSRR = (1UL << (13U + 16U));
+    GPIOF->BSRR = (1UL << (13U + 16U)) | (1UL << (14U + 16U)) | (1UL << (15U + 16U));
 }
 
 void Servo_Set_Pulse_Us(uint16_t lift_us, uint16_t claw_us)

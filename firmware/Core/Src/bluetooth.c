@@ -9,8 +9,17 @@
 
 #include "bluetooth.h"
 
+#define BT_RX_BUF_SIZE 32U
+
+static volatile char     bt_rx_buf[BT_RX_BUF_SIZE];
+static volatile uint8_t  bt_rx_head = 0U;
+static volatile uint8_t  bt_rx_tail = 0U;
+
+volatile char     bt_last_char = 0;
+volatile uint32_t bt_rx_count  = 0U;
+
 /**
- * @brief  Initialize USART2 on PD5 (TX) and PD6 (RX) for wireless Bluetooth communication.
+ * @brief  Initialize USART2 on PD5 (TX) and PD6 (RX) with RXNE interrupt for wireless Bluetooth.
  */
 void Bluetooth_Init(uint32_t apb1_clk_hz, uint32_t baudrate)
 {
@@ -27,28 +36,51 @@ void Bluetooth_Init(uint32_t apb1_clk_hz, uint32_t baudrate)
     GPIOD->AFR[0] &= ~((0xFUL << (5U * 4U)) | (0xFUL << (6U * 4U)));
     GPIOD->AFR[0] |=  ((7UL   << (5U * 4U)) | (7UL   << (6U * 4U)));
 
-    /* 3. Configure USART2: 8 data bits, no parity, 1 stop bit, oversampling by 16 */
+    /* 3. Configure USART2: 8N1, oversampling by 16, RXNE interrupt enabled */
     USART2->CR1 = 0U;
     USART2->BRR = (apb1_clk_hz + (baudrate / 2U)) / baudrate; /* Rounded baud divider (1667 @ 16 MHz / 9600) */
-    USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; /* Enable TX, RX, and USART2 */
+    USART2->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF;
+    USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_RXNEIE | USART_CR1_UE;
+
+    /* 4. Enable USART2 interrupt in Cortex-M7 NVIC so incoming phone commands are never missed */
+    NVIC_SetPriority(USART2_IRQn, 2U);
+    NVIC_EnableIRQ(USART2_IRQn);
 }
 
 /**
- * @brief  Non-blocking single-byte read from USART2 RDR. Automatically clears overrun/noise flags.
- * @return 1 if a new command byte was read into `*ch`, 0 if no byte waiting.
+ * @brief  Hardware USART2 Interrupt Handler — captures every incoming byte into ring buffer.
  */
-int Bluetooth_Read_Char_NonBlocking(char *ch)
+void USART2_IRQHandler(void)
 {
-    /* Clear Overrun (ORE), Framing (FE), or Noise (NE) errors so receiver never locks up */
     if (USART2->ISR & (USART_ISR_ORE | USART_ISR_FE | USART_ISR_NE)) {
         USART2->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF;
     }
 
-    if (USART2->ISR & USART_ISR_RXNE) {
-        *ch = (char)(USART2->RDR & 0xFFU);
-        return 1;
+    while (USART2->ISR & USART_ISR_RXNE) {
+        char c = (char)(USART2->RDR & 0xFFU);
+        bt_last_char = c;
+        bt_rx_count++;
+
+        uint8_t next = (uint8_t)((bt_rx_head + 1U) & (BT_RX_BUF_SIZE - 1U));
+        if (next != bt_rx_tail) {
+            bt_rx_buf[bt_rx_head] = c;
+            bt_rx_head = next;
+        }
     }
-    return 0;
+}
+
+/**
+ * @brief  Pop one received byte from the USART2 interrupt ring buffer (non-blocking).
+ * @return 1 if a new command byte was read into `*ch`, 0 if ring buffer is empty.
+ */
+int Bluetooth_Read_Char_NonBlocking(char *ch)
+{
+    if (bt_rx_tail == bt_rx_head) {
+        return 0;
+    }
+    *ch = bt_rx_buf[bt_rx_tail];
+    bt_rx_tail = (uint8_t)((bt_rx_tail + 1U) & (BT_RX_BUF_SIZE - 1U));
+    return 1;
 }
 
 void Bluetooth_Send_Char(char ch)

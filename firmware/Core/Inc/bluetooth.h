@@ -26,10 +26,14 @@
 #include "stm32f7xx.h"
 #include <stdint.h>
 
-/* Initialize USART2 on PD5 (TX) and PD6 (RX) at the requested baudrate (default 9600) */
+/* Live debug variables (add to STM32CubeIDE Live Expressions to verify incoming phone bytes!) */
+extern volatile char     bt_last_char;
+extern volatile uint32_t bt_rx_count;
+
+/* Initialize USART2 on PD5 (TX) and PD6 (RX) with hardware RXNE interrupt at requested baudrate */
 void Bluetooth_Init(uint32_t apb1_clk_hz, uint32_t baudrate);
 
-/* Check USART2 RXNE flag without blocking; returns 1 if a byte was received */
+/* Pop one buffered byte from the USART2 interrupt ring buffer; returns 1 if available, 0 if empty */
 int  Bluetooth_Read_Char_NonBlocking(char *ch);
 
 /* Transmit single character, null-terminated string, or compact robot telemetry line */

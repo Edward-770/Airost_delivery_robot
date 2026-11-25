@@ -93,11 +93,12 @@ void LineSensor_Init(void)
                  (4UL  << (3U * 5U)) |
                  (5UL  << (4U * 5U));
 
+    ADC1->SR  = 0U; /* Clear any leftover EOC / OVR flags before starting */
     ADC1->CR1 = ADC_CR1_SCAN;                                          /* Enable multi-channel scan */
     ADC1->CR2 = ADC_CR2_DMA | ADC_CR2_DDS | ADC_CR2_CONT | ADC_CR2_ADON; /* DMA + Continuous + Power ON */
 
     /* Short stabilization delay before triggering the first regular conversion */
-    for (volatile uint32_t i = 0U; i < 1000U; i++) {
+    for (volatile uint32_t i = 0U; i < 2000U; i++) {
         __NOP();
     }
     ADC1->CR2 |= ADC_CR2_SWSTART; /* Kick off continuous background ADC+DMA sampling! */

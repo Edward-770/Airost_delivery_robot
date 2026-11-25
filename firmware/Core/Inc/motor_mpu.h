@@ -4,16 +4,16 @@
  *                     + Cascaded Closed-Loop Wheel Speed PID + Gripper Servos + MPU-6050 IMU
  *
  * Hardware Connections (STM32 NUCLEO-F756ZG — 100% free of onboard Ethernet RMII conflicts!):
- *   - TB6612FNG Motor Driver (Logic VCC = 3.3V, Motor VM = Battery +):
+ *   - TB6612FNG Motor Driver (Logic VCC = 3.3V, Motor VM = Battery +, all signals on front D2-D7!):
  *       PWMA (Left Motor PWM)   -> PE9  (TIM1_CH1, CN10 Pin 4,  labeled D6, 20 kHz)
  *       PWMB (Right Motor PWM)  -> PE11 (TIM1_CH2, CN10 Pin 6,  labeled D5, 20 kHz)
- *       STBY (Driver Enable)    -> PE10 (GPIOE Out, CN10 Pin 24, 4th hole below D0, driven HIGH)
- *       AIN1 (Left Dir 1)       -> PE12 (GPIOE Out, CN10 Pin 26, 5th hole below D0)
+ *       AIN1 (Left Dir 1)       -> PF13 (GPIOF Out, CN10 Pin 2,  labeled D7)
  *       AIN2 (Left Dir 2)       -> PE13 (GPIOE Out, CN10 Pin 10, labeled D3)
- *       BIN1 (Right Dir 1)      -> PE14 (GPIOE Out, CN10 Pin 28, 6th hole below D0)
- *       BIN2 (Right Dir 2)      -> PE15 (GPIOE Out, CN10 Pin 30, 7th hole below D0)
+ *       BIN1 (Right Dir 1)      -> PF14 (GPIOF Out, CN10 Pin 8,  labeled D4)
+ *       BIN2 (Right Dir 2)      -> PF15 (GPIOF Out, CN10 Pin 12, labeled D2)
+ *       STBY (Driver Enable)    -> 3.3V (CN8 Pin 7) or PE10 (GPIOE Out, CN10 Pin 24, driven HIGH)
  *   - 25 mm Metal Cylinder Motor Hall Encoders (Power Encoder VCC from 3.3V!):
- *       Left  Encoder C1 / C2   -> PA6  (TIM3_CH1, CN7 Pin 12, D12) & PB5  (TIM3_CH2, CN7 Pin 14, D11)
+ *       Left  Encoder C1 / C2   -> PA6  (TIM3_CH1, CN7 Pin 12, D12) & PC7  (TIM3_CH2, CN7 Pin 11, left of D12)
  *       Right Encoder C1 / C2   -> PD12 (TIM4_CH1, CN10 Pin 21)     & PD13 (TIM4_CH2, CN10 Pin 19)
  *   - Ball Gripper Micro Servos (50 Hz PWM, Power Servo V+ from 5V Buck Regulator):
  *       Lift Servo Signal       -> PB10 (TIM2_CH3, CN10 Pin 32, 8th hole below D0)

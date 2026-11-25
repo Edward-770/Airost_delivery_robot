@@ -68,6 +68,8 @@ DMA_HandleTypeDef hdma_adc1;
 
 /* USER CODE BEGIN PV */
 /* Global telemetry structs — add these to STM32CubeIDE "Live Expressions" while debugging! */
+volatile uint32_t       alive_counter  = 0U;         /* Increments 100x/sec to prove main loop is running */
+volatile int32_t        live_line_err  = 0;          /* Live line error (-2000..+2000) for Live Expressions */
 volatile RobotState_t   robot_state    = STATE_AUTO_LINE_FOLLOW;
 volatile StationColor_t target_station = COLOR_NONE; /* Latched: 1=Red/Ball1, 2=Blue/Ball2, 3=Green/Ball3 */
 volatile uint8_t        branch_counter = 0U;         /* Counts perpendicular ball branches passed */
@@ -98,7 +100,7 @@ static void Handle_Bluetooth_Command(char cmd);
  */
 static void Handle_Bluetooth_Command(char cmd)
 {
-    /* Mode switch commands work at any time */
+    /* Mode switch & universal emergency stop work from ANY state */
     if (cmd == 'M' || cmd == 'm') {
         robot_state = STATE_MANUAL_BLUETOOTH;
         DrivePID_Reset(&drive_pid);
@@ -112,39 +114,46 @@ static void Handle_Bluetooth_Command(char cmd)
         Bluetooth_Send_String("MODE:AUTO_LINE_PID\r\n");
         return;
     }
+    if (cmd == '0' || cmd == 'X' || cmd == 'x') {
+        robot_state = STATE_MANUAL_BLUETOOTH;
+        DrivePID_Reset(&drive_pid);
+        Bluetooth_Send_String("STOP:MANUAL_BT\r\n");
+        return;
+    }
 
-    /* Manual wheel driving & servo ball-gripper actions */
+    /* Manual wheel driving & servo ball-gripper actions (case-insensitive) */
     if (robot_state == STATE_MANUAL_BLUETOOTH) {
         switch (cmd) {
-            case 'F': case 'W': /* Drive Forward */
+            case 'F': case 'f': case 'W': case 'w': /* Drive Forward */
                 DrivePID_Set_Target_Ticks(&drive_pid, MANUAL_SPEED_TICKS_10MS, MANUAL_SPEED_TICKS_10MS);
+                Bluetooth_Send_String("CMD:F\r\n");
                 break;
-            case 'B': case 'S': /* Drive Backward */
+            case 'B': case 'b': case 'S': case 's': /* Drive Backward */
                 DrivePID_Set_Target_Ticks(&drive_pid, -MANUAL_SPEED_TICKS_10MS, -MANUAL_SPEED_TICKS_10MS);
+                Bluetooth_Send_String("CMD:B\r\n");
                 break;
-            case 'L': case 'A': /* Spin Left */
+            case 'L': case 'l': case 'A': case 'a': /* Spin Left */
                 DrivePID_Set_Target_Ticks(&drive_pid, -TURN_MAX_TICKS_10MS, TURN_MAX_TICKS_10MS);
+                Bluetooth_Send_String("CMD:L\r\n");
                 break;
-            case 'R': case 'D': /* Spin Right */
+            case 'R': case 'r': case 'D': case 'd': /* Spin Right */
                 DrivePID_Set_Target_Ticks(&drive_pid, TURN_MAX_TICKS_10MS, -TURN_MAX_TICKS_10MS);
-                break;
-            case '0': case 'X': /* Stop Motors */
-                DrivePID_Reset(&drive_pid);
+                Bluetooth_Send_String("CMD:R\r\n");
                 break;
 
-            case 'G': /* Close gripper claw to grab 40 mm ping-pong ball */
+            case 'G': case 'g': /* Close gripper claw to grab 40 mm ping-pong ball */
                 current_claw_us = SERVO_CLAW_CLOSE_US;
                 Servo_Set_Pulse_Us(current_lift_us, current_claw_us);
                 break;
-            case 'O': /* Open gripper claw to release ball in unload zone */
+            case 'O': case 'o': /* Open gripper claw to release ball in unload zone */
                 current_claw_us = SERVO_CLAW_OPEN_US;
                 Servo_Set_Pulse_Us(current_lift_us, current_claw_us);
                 break;
-            case 'U': /* Raise pickup arm to carry pose */
+            case 'U': case 'u': /* Raise pickup arm to carry pose */
                 current_lift_us = SERVO_LIFT_UP_US;
                 Servo_Set_Pulse_Us(current_lift_us, current_claw_us);
                 break;
-            case 'J': /* Lower pickup arm to ball level */
+            case 'J': case 'j': /* Lower pickup arm to ball level */
                 current_lift_us = SERVO_LIFT_DOWN_US;
                 Servo_Set_Pulse_Us(current_lift_us, current_claw_us);
                 break;
@@ -166,17 +175,29 @@ int main(void)
     SystemClock_Config();
 
     /* USER CODE BEGIN 2 */
-    /* Disable Cortex-M7 Data Cache so CPU always sees live DMA2_Stream0 writes to line_adc_raw[]! */
-    SCB_DisableDCache();
+    /* IMPORTANT Cortex-M7 safety: only disable D-Cache if it was actually enabled!
+     * Calling SCB_DisableDCache() when D-Cache is already OFF cleans uninitialized cache tags
+     * and causes a HardFault / RAM corruption on STM32F756ZG. */
+    if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+        SCB_DisableDCache();
+    }
 
     /* Enable Cortex-M7 Hardware Floating-Point Unit (FPU) with pipeline sync barriers */
     SCB->CPACR |= ((3UL << (10U * 2U)) | (3UL << (11U * 2U)));
     __DSB();
     __ISB();
 
+    /* Configure onboard Green User LED LD1 (PB0 on NUCLEO-F756ZG) as heartbeat indicator */
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
+    GPIOB->MODER &= ~(3UL << (0U * 2U));
+    GPIOB->MODER |=  (1UL << (0U * 2U));
+
     /* ------------------------------------------------------------------------
-     * 2. Bare-Metal Initialization Sequence (Order Matters for I2C 0x29 Bus!)
+     * 2. Bare-Metal Initialization Sequence (Start Line ADC+DMA First!)
      * ------------------------------------------------------------------------ */
+    /* Library 5: Start 5-channel IR array continuous circular scan via ADC1 + DMA2_Stream0 FIRST */
+    LineSensor_Init();
+
     ToF_Hold_All_In_Reset(); /* Hold PG0, PG1, PG2 LOW first so 0x29 bus is clean */
     I2C1_Bus_Init();         /* Init shared 100 kHz I2C1 bus on PB8 (SCL) & PB9 (SDA) */
 
@@ -195,9 +216,6 @@ int main(void)
     /* Library 4: Init ZS-040 Bluetooth serial link on USART2 (PD5=TX, PD6=RX @ 9600 baud) */
     Bluetooth_Init(APB1_CLK_HZ, 9600UL);
     Bluetooth_Send_String("AIROST CASCADED PID READY\r\n");
-
-    /* Library 5: Start 5-channel IR array continuous circular scan via ADC1 + DMA2_Stream0 */
-    LineSensor_Init();
 
     uint32_t loop_tick = 0U;
     /* USER CODE END 2 */
@@ -315,8 +333,11 @@ int main(void)
         /* E. Run Inner-Loop Left & Right Wheel Encoder Speed PID every 10 ms (reads TIM3/TIM4) */
         DrivePID_Update_10ms(&drive_pid, LOOP_DT_SEC);
 
-        /* F. Send compact live sensor telemetry over ZS-040 Bluetooth every 250 ms (4 Hz) */
+        /* F. Blink onboard Green LED (LD1 / PB0) & send Bluetooth telemetry every 250 ms (4 Hz) */
+        live_line_err = LineSensor_Get_Error();
+        alive_counter++;
         if ((loop_tick % 25U) == 0U) {
+            GPIOB->ODR ^= (1UL << 0U); /* Visual heartbeat: blinking Green LD1 proves firmware is alive! */
             Bluetooth_Send_Telemetry(last_line_err,
                                      (uint8_t)target_station,
                                      tof_data.front_mm,
